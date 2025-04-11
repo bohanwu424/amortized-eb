@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "npp"
+version = "2024.0.0"
+dependencies = [
+    'numpy',
+    'scipy',
+    'matplotlib',
+    'pytest',
+    'randomname',
+    'aim',
+    'jupyterlab',
+    'plotly',
+    'pandas',
+    'ucimlrepo',
+    'git+https://github.com/KamitaniLab/smlr.git'
+]
+requires-python = ">=3.10"
+authors = [
+    {name = "Bohan Wu", email = "bw2766@columbia.edu"}
+]
+description = "Amortized empirical Bayes"
+readme = "README.md"
+license = {text = "MIT License"}

@@ -1,8 +1,5 @@
 import tensorflow_datasets as tfds
-import tensorflow as tf
 import torch
-from torch.distributions import Normal
-from torch.distributions.gamma import Gamma
 import numpy as np
 import torch.nn.functional as F
 import matplotlib.pyplot as plt

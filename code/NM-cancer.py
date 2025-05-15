@@ -96,19 +96,12 @@ z_range = np.linspace(lower_bands_aeb_np, upper_bands_aeb_np, num=500)
 z_threshold = 1.5
 prob_aeb = 1 - (stats.norm.cdf((z_threshold - np.abs(hat_z_aeb_np)) / post_sd_np) - stats.norm.cdf((-z_threshold - np.abs(hat_z_aeb_np)) / post_sd_np))
 
-#Compute the local false sign rate
-local_false_sign_rate = np.where(
-    y_np > 0,
-    stats.norm.cdf(-hat_z_aeb_np / post_sd_np),
-    stats.norm.cdf(hat_z_aeb_np / post_sd_np)
-)
-local_false_sign_rate = stats.norm.cdf(hat_z_aeb_np / post_sd_np)
-
-
-# Amortized EB findings
+# EAEB findings
 indices_aeb = np.where((lower_bands_aeb_np > 0) | (upper_bands_aeb_np < 0))[0]
 
-# Create a figure with two subplots
+
+
+# Create the figure
 fig, axs = plt.subplots(1, 2, figsize=(15, 8))
 
 # Plot the posterior credible bands
@@ -121,22 +114,24 @@ axs[0].axhline(y=0, color='grey', linestyle='--')
 significant_y = y.cpu().numpy()[indices_aeb]
 significant_hat_z = hat_z_aeb.cpu().numpy().flatten()[indices_aeb]
 axs[0].scatter(significant_y, significant_hat_z, color='red', marker='o', label='Significant Genes')
-
-axs[0].set_xlabel('y', fontsize=14)
-axs[0].set_ylabel('Estimates for $z$', fontsize=14)
-axs[0].set_title('AEB Estimates and Credible Band', fontsize=16)
-axs[0].legend(fontsize=12, loc='upper left')
+axs[0].set_xlabel(r'$y$', fontsize=28)
+axs[0].set_ylabel(r'Estimated $z$', fontsize=28)
+axs[0].set_title('AEB Estimates with Credible Bands', fontsize=30, pad=15)
+axs[0].tick_params(axis='both', labelsize=20)
+axs[0].legend(fontsize=18, loc='upper left')
 axs[0].grid(True)
 
 # Plot the posterior probability of |z| > stats.norm.ppf(alpha / 2).
-axs[1].plot(y_sorted, local_false_sign_rate[sorted_indices], color='red')
-axs[1].axhline(y=0, color='grey', linestyle='--')
-axs[1].axhline(y=0.5, color='grey', linestyle='--')
-axs[1].axhline(y=1, color='grey', linestyle='--')
-axs[1].set_xlabel('y', fontsize=14)
-axs[1].set_ylabel(f'$P(|z| > {round(z_threshold, 2)} \mid y)$', fontsize=14)
-axs[1].set_title('Probability of Significant Findings', fontsize=16)
+axs[1].plot(y_sorted, prob_aeb[sorted_indices], color='red', linewidth=2)
+axs[1].axhline(y=0, color='grey', linestyle='--', linewidth=1.5)
+axs[1].axhline(y=0.5, color='grey', linestyle='--', linewidth=1.5)
+axs[1].axhline(y=1, color='grey', linestyle='--', linewidth=1.5)
+axs[1].set_xlabel(r'$y$', fontsize=28)
+axs[1].set_ylabel(f'$P(|z| > {round(z_threshold, 2)} \mid y)$', fontsize=28)
+axs[1].set_title('Probability of Significant Findings', fontsize=30, pad=15)
+axs[1].tick_params(axis='both', labelsize=20)
 axs[1].grid(True)
+
 
 plt.tight_layout()
 plot_filename = '../Plots/Prostate/AEB-credible-bands.pdf'

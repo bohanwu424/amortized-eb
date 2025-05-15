@@ -28,7 +28,6 @@ from NormalMeans import train_model, evaluate_model, plot_estimator, evaluate_mm
 
 #--------------------------------------------------------------------------------------------------
 #Block1: MSE Table
-
 # Set random seed for reproducibility
 torch.manual_seed(42)
 np.random.seed(42)
@@ -86,16 +85,14 @@ for s in s_values:
                 hat_z_npmle <- fit_npmle$posterior$mean
                 list(hat_z_laplace = hat_z_laplace, hat_z_cauchy = hat_z_cauchy, hat_z_npmle = hat_z_npmle)
                 """
-
-        # Execute the R code and store the result
         result = ro.r(r_code)
 
-        # Convert the results from R to PyTorch tensors
+        # Convert the results from R to PyTorch
         hat_z_laplace = torch.tensor(np.array(result[0]), dtype=torch.float32).unsqueeze(1)
         hat_z_cauchy = torch.tensor(np.array(result[1]), dtype=torch.float32).unsqueeze(1)
         hat_z_npmle = torch.tensor(np.array(result[2]), dtype=torch.float32).unsqueeze(1)
 
-        # Calculate the mean squared error (MSE) for each estimator
+        # Calculate the MSE for Laplace/Cauchy/NPMLE estimators
         mse_laplace = F.mse_loss(hat_z_laplace, true_z, reduction='mean').item()
         mse_cauchy = F.mse_loss(hat_z_cauchy, true_z, reduction='mean').item()
         mse_npmle = F.mse_loss(hat_z_npmle, true_z, reduction='mean').item()
@@ -140,11 +137,10 @@ for s in s_values:
             "MLE": y
         }
 
-        # Plots
-        fig, ax = plt.subplots(3, 3, figsize=(10, 10))
+        fig, ax = plt.subplots(3, 3, figsize=(14, 12))
         axes = ax.flatten()
 
-        # Define colors for each estimator, including NPMLE
+        # Define colors
         colors = {
             'AEB-both': "#1f77b4",
             'AEB-mean': "#9467bd",
@@ -157,18 +153,28 @@ for s in s_values:
             "MLE": "#d62728"
         }
 
-        # Plot each estimator in the grid
         for i, (title, z_data) in enumerate(estimators.items()):
-            axes[i].scatter(y.numpy(), true_z.numpy(), color='grey', alpha=0.6, label='True z')
-            axes[i].scatter(y.numpy(), z_data.numpy(), color=colors[title], alpha=0.6, label='Estimated z')
-            axes[i].plot(y.numpy(), y.numpy(), linestyle=':', color='black', alpha=0.5)
-            axes[i].set_title(title)
-            axes[i].set_xlabel('Observed y')
-            axes[i].set_ylabel('Estimated z')
-            axes[i].legend()
-            axes[i].grid(True)
+            ax = axes[i]
+            ax.scatter(y.numpy(), true_z.numpy(), color='grey', alpha=0.5, label='True $z$')
+            ax.scatter(y.numpy(), z_data.numpy(), color=colors[title], alpha=0.6, label='Estimated $z$')
+            ax.plot(y.numpy(), y.numpy(), linestyle=':', color='black', alpha=0.5)
 
-        # Turn off any unused subplots
+            ax.set_title(title, fontsize=24)
+
+            if i % 3 == 0:
+                ax.set_ylabel("Estimated $z$", fontsize=20)
+            else:
+                ax.set_yticklabels([])
+
+            if i // 3 == 2:
+                ax.set_xlabel("Observed $y$", fontsize=20)
+            else:
+                ax.set_xticklabels([])
+
+            ax.tick_params(axis='both', labelsize=18)
+            ax.grid(True)
+            ax.legend(fontsize=12, loc='upper left')
+
         for j in range(len(estimators), len(axes)):
             axes[j].axis('off')
 
@@ -197,9 +203,9 @@ for s in s_values:
             weights = sigma2 / (sigma2 + exp_tau)
         plt.figure(figsize=(10, 5))
         plt.scatter(y, weights, color='blue', alpha=0.6)
-        plt.title("Amortized EB Shrinkage", fontsize=20)
-        plt.xlabel("$y$", fontsize=18)
-        plt.ylabel("Shrinkage weight", fontsize=18)
+        plt.title("Amortized EB Shrinkage", fontsize=40)
+        plt.xlabel("$y$", fontsize=36)
+        plt.ylabel("Shrinkage weight", fontsize=36)
         plt.grid(True)
         plt.tight_layout()
         plot_filename = f'../Plots/NormalMeans/nm_hetero_shrinkage_mean_{mean}_s_{s}.pdf'
@@ -280,23 +286,26 @@ for s in s_values:
 
 df_mse = pd.DataFrame(mse_results)
 
-plt.figure(figsize=(10, 6))
-plt.plot(df_mse['s'], df_mse['AEB-both'], label='AEB-both', color='blue', linestyle='-', marker='o')
-plt.plot(df_mse['s'], df_mse['AEB-variance'], label='AEB-variance', color='orange', linestyle='--', marker='s')
-plt.plot(df_mse['s'], df_mse['Cauchy'], label='Cauchy', color='green', linestyle='-.', marker='D')
-plt.plot(df_mse['s'], df_mse['Laplace'], label='Laplace', color='red', linestyle=':', marker='x')
-plt.plot(df_mse['s'], df_mse['AEB-mean'], label='AEB-both', color='purple', linestyle='-', marker='^')
-plt.plot(df_mse['s'], df_mse['NPMLE'], label='NPMLE', color='black', linestyle='-', marker='*')
-plt.plot(df_mse['s'], df_mse['James-Stein'], label='James-Stein', color='brown', linestyle='--', marker='v')
 
+plt.figure(figsize=(12, 7))
 
-plt.xlabel('S', fontsize=18)
-plt.ylabel('MSE', fontsize=18)
-plt.title('MSE vs. Sparsity Level', fontsize=20)
-plt.legend(fontsize=14)
-plt.xticks(fontsize=14)
-plt.yticks(fontsize=14)
-plt.grid(True, which="both", ls="--", linewidth=0.5)
+plt.plot(df_mse['s'], df_mse['AEB-both'], label='AEB-Both', color='blue', linestyle='-', marker='o', linewidth=2, markersize=8)
+plt.plot(df_mse['s'], df_mse['AEB-variance'], label='AEB-Variance', color='orange', linestyle='--', marker='s', linewidth=2, markersize=8)
+plt.plot(df_mse['s'], df_mse['Cauchy'], label='Cauchy', color='green', linestyle='-.', marker='D', linewidth=2, markersize=8)
+plt.plot(df_mse['s'], df_mse['Laplace'], label='Laplace', color='red', linestyle=':', marker='x', linewidth=2, markersize=8)
+plt.plot(df_mse['s'], df_mse['AEB-mean'], label='AEB-Mean', color='purple', linestyle='-', marker='^', linewidth=2, markersize=8)
+plt.plot(df_mse['s'], df_mse['NPMLE'], label='NPMLE', color='black', linestyle='-', marker='*', linewidth=2, markersize=10)
+plt.plot(df_mse['s'], df_mse['James-Stein'], label='James-Stein', color='brown', linestyle='--', marker='v', linewidth=2, markersize=8)
+
+plt.xlabel('Sparsity level $s$', fontsize=32)
+plt.ylabel('MSE', fontsize=32)
+plt.title('MSE vs. Sparsity', fontsize=36, pad=20)
+
+plt.xticks(fontsize=24)
+plt.yticks(fontsize=24)
+plt.legend(fontsize=20, loc='upper left', frameon=False)
+plt.grid(True, which="both", linestyle='--', linewidth=1.0, alpha=0.6)
+
 plt.tight_layout()
 plot_filename = '../Plots/NormalMeans/mse_vs_s.pdf'
 plt.savefig(plot_filename)

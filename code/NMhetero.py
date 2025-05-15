@@ -248,10 +248,10 @@ def evaluate_model(model, y, true_z, sigma2, x=None, x_tau=None):
     return mse_bayes, post_mean, post_var
 
 def train_and_evaluate_model(y, sigma2, true_z, x, hidden_dim, depth, epochs, patience, lr_init, delta, amortized):
-    # Train the model with the specified parameters
+    # Train the model
     model = train_model(y, sigma2, x, hidden_dim, depth, epochs, patience, lr_init, delta, amortized, print_epoch = False, print_NaN = True)
 
-    # Evaluate the model to get the MSE
+    # Evaluate
     mse,_,_ = evaluate_model(model, y, true_z, sigma2)
 
     return mse

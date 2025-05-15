@@ -6,12 +6,10 @@ import torch.nn as nn
 from torch.cuda.amp import GradScaler
 import matplotlib.pyplot as plt
 from sklearn.svm import SVC
-from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
 from ucimlrepo import fetch_ucirepo
-from xgboost import XGBClassifier
 import pandas as pd
 
 torch.manual_seed(0)
@@ -19,9 +17,19 @@ np.random.seed(0)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-dataset = fetch_ucirepo(id=545)
-X = dataset.data.features.values
-y = dataset.data.targets.values
+#try if this works
+try:
+    dataset = fetch_ucirepo(id=545)
+    X = dataset.data.features.values
+    y = dataset.data.targets.values
+except:
+    file_path = '../data/Rice_Cammeo_Osmancik.xlsx'
+    dataset = pd.read_excel(file_path)
+    X = dataset.iloc[:, :-1].values  # Features
+    y = dataset.iloc[:, -1].values
+    label_encoder = LabelEncoder()
+    y = label_encoder.fit_transform(y)
+
 
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
@@ -42,23 +50,19 @@ class F_mu(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(F_mu, self).__init__()
         self.fc = nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(input_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 64),
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(32, output_dim)
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, 16),
+            nn.ReLU(),
+            nn.Linear(16, output_dim)
         )
 
     def forward(self, y):
@@ -68,23 +72,19 @@ class F_S(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(F_S, self).__init__()
         self.fc = nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(input_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 64),
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(32, output_dim * output_dim)
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, 16),
+            nn.ReLU(),
+            nn.Linear(16, output_dim * output_dim)
         )
         self.output_dim = output_dim
 
@@ -94,7 +94,6 @@ class F_S(nn.Module):
         L = torch.tril(L_params)
         S = torch.matmul(L, L.transpose(1, 2))
         return S
-
 class F_mu_Constant(torch.nn.Module):
     def __init__(self, mu_0):
         super(F_mu_Constant, self).__init__()
@@ -154,78 +153,69 @@ epochs = 3000
 results = {"noise_level": [], "accuracy_clean": [], "accuracy_noisy": [], "accuracy_denoised": [], "mse_noisy": [], "mse_denoised": []}
 
 # Evaluate for multiple noise levels
-#noise_levels = np.linspace(0.1, 2.5, 10)
-noise_levels = [0.5]
+noise_levels = np.linspace(0.1, 2.5, 10)
+#noise_levels = [1]
 amortization_types = ["Gaussian", "mean", "covariance", "both"]
 
 # Store all results in a single dataframe
 all_results = []
 
-# Function for testing different amortization choices
-def test_amortization(amortization_type):
-    if amortization_type == "Gaussian":
-        f_mu = F_mu_Constant(torch.zeros(d, device=device))
-        f_S = F_S_Constant(torch.eye(d, device=device))
-    elif amortization_type == "mean":
-        f_mu = F_mu(input_dim=d, output_dim=d).to(device)
-        f_S = F_S_Constant(torch.eye(d, device=device))
-    elif amortization_type == "covariance":
-        f_mu = F_mu_Constant(torch.zeros(d, device=device))
-        f_S = F_S(input_dim=d, output_dim=d).to(device)
-    else:  # Amortizing Mean and Covariance
-        f_mu = F_mu(input_dim=d, output_dim=d).to(device)
-        f_S = F_S(input_dim=d, output_dim=d).to(device)
 
-    optimizer = optim.Adam(list(f_mu.parameters()) + list(f_S.parameters()) if callable(f_mu) else list(f_S.parameters()), lr=1e-3, weight_decay=0.05)
-    scaler = GradScaler()
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=50,
-                                                     verbose=False)
-    # Evaluate for multiple noise levels
-    for noise_std_test in noise_levels:
-        np.random.seed(0)
-        noise_test = noise_std_test * np.random.randn(*X_test.shape)
-        X_test_noisy = X_test + noise_test
+for noise_std_test in noise_levels:
+    np.random.seed(0)
+    noise_test = noise_std_test * np.random.randn(*X_test.shape)
+    X_test_noisy = X_test + noise_test
 
-        # Convert data to PyTorch tensors
-        X_test_noisy_tensor = torch.tensor(X_test_noisy, dtype=torch.float32).to(device)
-        X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
+    # Convert to tensors
+    X_test_noisy_tensor = torch.tensor(X_test_noisy, dtype=torch.float32).to(device)
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
+    Sigma = torch.stack([noise_std_test ** 2 * torch.eye(d) for _ in range(n_test)]).to(device)
 
-        # Covariance matrix Sigma
-        Sigma = torch.stack([noise_std_test ** 2 * torch.eye(d) for _ in range(n_test)]).to(device)
+    # Accuracy on  noisy input
+    y_pred_noisy = model.predict(X_test_noisy)
+    accuracy_noisy = accuracy_score(y_test, y_pred_noisy)
 
-        # Evaluate SVC on noisy data
-        y_pred_noisy = model.predict(X_test_noisy)
-        accuracy_noisy = accuracy_score(y_test, y_pred_noisy)
-        print(f'{amortization_type} - Noise Level {noise_std_test}, Accuracy on noisy test data: {accuracy_noisy:.4f}')
+    # Accuracy on clean data
+    accuracy_clean = accuracy_score(y_test, model.predict(X_test))
 
-        # Train neural networks on noisy data
+    for amortization_type in amortization_types:
+        if amortization_type == "Gaussian":
+            f_mu = F_mu_Constant(torch.zeros(d, device=device))
+            f_S = F_S_Constant(torch.eye(d, device=device))
+        elif amortization_type == "mean":
+            f_mu = F_mu(input_dim=d, output_dim=d).to(device)
+            f_S = F_S_Constant(torch.eye(d, device=device))
+        elif amortization_type == "covariance":
+            f_mu = F_mu_Constant(torch.zeros(d, device=device))
+            f_S = F_S(input_dim=d, output_dim=d).to(device)
+        else:  # Amortizing both
+            f_mu = F_mu(input_dim=d, output_dim=d).to(device)
+            f_S = F_S(input_dim=d, output_dim=d).to(device)
+
+        optimizer = optim.Adam(list(f_mu.parameters()) + list(f_S.parameters()) if callable(f_mu) else list(f_S.parameters()), lr=1e-3, weight_decay=0.05)
+        scaler = GradScaler()
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=50)
+
         for epoch in range(epochs):
             optimizer.zero_grad()
             loss = SURE(f_mu, f_S, X_test_noisy_tensor, Sigma)
-
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
             scheduler.step(loss.item())
 
-            if (epoch + 1) % 100 == 0:
-                print(f'{amortization_type} - Noise Level {noise_std_test}, Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}')
-
-        # Denoise the noisy test data
+        # Denoising
         with torch.no_grad():
             X_test_denoised_tensor = denoise(X_test_noisy_tensor, f_mu, f_S, Sigma)
             X_test_denoised = X_test_denoised_tensor.cpu().numpy()
 
-        # Evaluate SVC on denoised data
+        # Evaluate
         y_pred_denoised = model.predict(X_test_denoised)
         accuracy_denoised = accuracy_score(y_test, y_pred_denoised)
-        print(f'{amortization_type} - Noise Level {noise_std_test}, Accuracy on denoised test data: {accuracy_denoised:.4f}')
 
-        # Compute MSE
         mse_noisy = nn.MSELoss()(X_test_tensor, X_test_noisy_tensor).item()
         mse_denoised = nn.MSELoss()(X_test_tensor, X_test_denoised_tensor).item()
 
-        # Append to all_results list
         all_results.append({
             "amortization_type": amortization_type,
             "noise_level": noise_std_test,
@@ -236,40 +226,31 @@ def test_amortization(amortization_type):
             "mse_denoised": mse_denoised
         })
 
-# Run each amortization strategy
-for amortization_type in amortization_types:
-    test_amortization(amortization_type)
-
 # Save all results to a single CSV file
 all_results_df = pd.DataFrame(all_results)
 all_results_df.to_csv('../Results/NormalMeans-Rice/results_rice.csv', index=False)
-print("Results saved to 'results_rice.csv'")
 
 # Plotting
-plt.figure(figsize=(12, 5))
+all_results_df = pd.read_csv('../Results/NormalMeans-Rice/results_rice.csv')
+plt.figure(figsize=(15, 7))
 
 # First Plot: MSE vs Noise Level (Left plot)
 plt.subplot(1, 2, 1)
-
-# Plot for Noisy data (same for all amortization strategies)
-plt.plot(all_results_df["noise_level"].unique(),
-         all_results_df.groupby("noise_level")["mse_noisy"].mean(),
-         label='noisy', linestyle='--', marker='o')
 
 # Plot for Amortizing Mean, Covariance, and Mean + Covariance
 for amortization_type in amortization_types:
     subset = all_results_df[all_results_df['amortization_type'] == amortization_type]
     plt.plot(subset["noise_level"], subset["mse_denoised"], label=f'{amortization_type}', marker='o')
 
-plt.xlabel('Noise Level')
-plt.ylabel('MSE')
-plt.legend()
-plt.title('MSE vs Noise Level')
+plt.xlabel('Noise Level', fontsize=24)
+plt.ylabel('MSE', fontsize=24)
+plt.legend(fontsize=20)
+plt.title('Denoising MSE', fontsize=32, pad=20)
 
 # Second Plot: Accuracy vs Noise Level (Right plot)
 plt.subplot(1, 2, 2)
 
-# Plot for Noisy data (same for all amortization strategies)
+# Plot for Noisy data
 plt.plot(all_results_df["noise_level"].unique(),
          all_results_df.groupby("noise_level")["accuracy_noisy"].mean(),
          label='noisy', linestyle='--', marker='o')
@@ -284,10 +265,10 @@ plt.plot(all_results_df["noise_level"].unique(),
          all_results_df.groupby("noise_level")["accuracy_clean"].mean(),
          label='clean', linestyle='-', marker='x')
 
-plt.xlabel('Noise Level')
-plt.ylabel('Accuracy')
-plt.legend()
-plt.title('Accuracy vs Noise Level')
+plt.xlabel('Noise Level', fontsize=24)
+plt.ylabel('Accuracy', fontsize=24)
+plt.legend(fontsize=20)
+plt.title('Test Accuracy', fontsize=32, pad=20)
 plt.tight_layout()
 plt.savefig('../Plots/NormalMeans/results_rice.pdf', dpi=300)
 plt.show()

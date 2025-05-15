@@ -3,9 +3,9 @@ from torch.distributions import Normal, Gamma
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import rpy2.robjects as ro
+from torch.distributions import Normal, Gamma
+import pandas as pd
 from rpy2.robjects.packages import importr
-from rpy2.robjects import FloatVector
 from NormalMeans import  train_model, evaluate_model
 
 # Import R's utility package and the EbayesThresh package
@@ -32,11 +32,11 @@ def bootstrap_mse(y, true_z, sigma2, S, n_bootstraps=100):
             model_aeb = train_model(y_bootstrap, sigma2, approx=False, epochs=1000, depth=5, hidden_dim=20)
             mse_aeb, _ = evaluate_model(model_aeb, y_bootstrap, true_z_bootstrap, sigma2)
 
-            # Check for NaN
+            # Check NaN
             if np.isnan(mse_aeb):
                 mse_samples.clear()
                 break
-            mse_samples.append(mse_aeb)
+            mse_samples._append(mse_aeb)
 
         if mse_samples:
             valid = True
@@ -57,10 +57,6 @@ n_values = np.logspace(np.log10(1000), np.log10(1000000), num=20).astype(int)
 alpha, beta = 2.0, 1.0
 sigma2 = torch.tensor(1.0)
 
-# Simulate data and compute bootstrap MSE with error handling
-from torch.distributions import Normal, Gamma
-import pandas as pd
-
 # Placeholder DataFrame
 df_results = pd.DataFrame(columns=['n', 'Minimax MSE', 'Mean AEB MSE', 'CI Lower', 'CI Upper'])
 
@@ -77,25 +73,22 @@ for n in n_values:
     #  mean_mse_aeb, ci_lower, ci_upper = bootstrap_mse(y, true_z, sigma2, S=int(np.floor(n**(2/3))))
     minimax_mse = 2 * s * np.log(1 / s)
 
-    df_results = df_results.append({
+    df_results = df_results._append({
         'n': n,
         'Minimax MSE': minimax_mse,
         'AEB MSE': mse_aeb,
-     #   'Mean AEB MSE': mean_mse_aeb,
-     #   'CI Lower': ci_lower,
-      #  'CI Upper': ci_upper
     }, ignore_index=True)
 
 # Plot results with confidence intervals
 fig, ax = plt.subplots(figsize=(10, 8))
 ax.plot(df_results['n'], df_results['AEB MSE'], linestyle='-', label='AEB MSE')
 ax.plot(df_results['n'], df_results['Minimax MSE'], label='Minimax MSE', linestyle='--')
-ax.set_title('MSE Comparison as a Function of $n$ ($s = 1/\sqrt{n}$)', fontsize=16)
-ax.set_xlabel('Number of Samples ($n$)', fontsize=14)
-ax.set_ylabel('MSE', fontsize=14)
+ax.set_title('MSE Comparison as a Function of $n$ ($s = 1/\sqrt{n}$)', fontsize=40)
+ax.set_xlabel('Number of Samples ($n$)', fontsize=36)
+ax.set_ylabel('MSE', fontsize=36)
 ax.set_xscale('log')
 ax.grid(True)
-ax.legend()
+plt.legend(fontsize=28)
 plt.tight_layout()
 plot_filename = '../Plots/NormalMeans/Risk_vs_n.pdf'
 plt.savefig(plot_filename)

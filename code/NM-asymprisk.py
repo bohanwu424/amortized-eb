@@ -11,10 +11,9 @@ import rpy2.robjects as ro
 from rpy2.robjects.packages import importr
 from rpy2.robjects import FloatVector
 
-# Import R's utility package
+# Import R package
 utils = importr('utils')
 
-# Install and load the 'EbayesThresh' package if not already installed
 try:
     ebayesthresh = importr('EbayesThresh')
 except:
@@ -43,7 +42,7 @@ def evaluate_mse(model_func, y, true_z, sigma2):
     mse, _ = evaluate_model(model, y, true_z, sigma2)
     return mse
 
-num_simulations = 100
+num_simulations = 20
 
 for seed in range(num_simulations):
     torch.manual_seed(seed)
@@ -85,22 +84,23 @@ for key in mse_results.keys():
         mse_results[key] /= num_simulations
 
 df_mse = pd.DataFrame(mse_results)
+#save results
+df_mse.to_csv('../Results/NormalMeans/mse_vs_n.csv', index=False)
 
 plt.figure(figsize=(10, 6))
-plt.plot(df_mse['n'], df_mse['AEB'], label='AEB', color='blue', linestyle='-', marker='o')
-plt.plot(df_mse['n'], df_mse['AVAR'], label='AVAR', color='orange', linestyle='--', marker='s')
+plt.plot(df_mse['n'], df_mse['AEB'], label='AEB-both', color='blue', linestyle='-', marker='o')
+plt.plot(df_mse['n'], df_mse['AVAR'], label='AEB-variance', color='orange', linestyle='--', marker='s')
 plt.plot(df_mse['n'], df_mse['Cauchy'], label='Cauchy', color='green', linestyle='-.', marker='D')
 plt.plot(df_mse['n'], df_mse['Laplace'], label='Laplace', color='red', linestyle=':', marker='x')
 plt.plot(df_mse['n'], df_mse['Minimax'], label='Minimax', color='black', linestyle='-', marker='*')
 
 plt.xscale('log')
-plt.yscale('log')
-plt.xlabel('n', fontsize=18)
-plt.ylabel('MSE', fontsize=18)
-plt.title(r'MSE vs. Sample Size ($s_n = n^{-1/2}$)', fontsize=20)
-plt.xticks(fontsize=14)
-plt.yticks(fontsize=14)
-plt.legend(fontsize=14)
+plt.xlabel('n', fontsize=32)
+plt.ylabel('MSE', fontsize=32)
+plt.title(r'MSE vs. Sample Size ($s_n = n^{-1/2}$)', fontsize=36, pad=20)
+plt.xticks(fontsize=24)
+plt.yticks(fontsize=24)
+plt.legend(fontsize=20, loc='upper rigth', frameon=False)
 plt.grid(True, which="both", ls="--", linewidth=0.5)
 plt.tight_layout()
 plot_filename = '../Plots/NormalMeans/mse_vs_n.pdf'
